@@ -19,95 +19,103 @@ rng('shuffle');reset(RandStream.getGlobalStream,sum(100*clock));
 % initialize memory network
 clear;
 %number of pairs
-Npairs=25;
+Npairs=10;
 % number of units per pair
-Nunits = 2;
-inhibition=0.1;
+Nunits = Npairs*2;
 % initial activation
 initAct = zeros(Nunits, 1);
-wt_init=0.01;%higher initial weights -> more noise
-gain_init=0.1;
-tau_init=0.00157;
+wt_init=0.01;%0.01;%higher initial weights -> more noise
+gain_init=1;%makes influence of input stronger
+tau_init=0.01;
+wtnoise=1;%1
+in=100;
 % weights
-for i=1:Npairs;
-    for j=1:Npairs;
-        wt_adj=rand(1)*wt_init*5;%+wt_init;
-        initWeightScale = wt_init+wt_adj(1);
-        Ws(i,j,:,:) = (ones(Nunits) - eye(Nunits)) * initWeightScale;
-        wt_adj=rand(1)*wt_init*5;%+wt_init;
-        initWeightScale = wt_init+wt_adj(1);
-        Wt(i,j,:,:) = (ones(Nunits) - eye(Nunits)) * initWeightScale;
-    end;
-    gains_s(i)=rand(1)+gain_init;
-    gains_t(i)=rand(1)+gain_init;
-    taus_s(i)=randn(1)*tau_init/10+tau_init;
-    taus_t(i)=randn(1)*tau_init/10+tau_init;
-end;
-
-W_study=Ws;W_test=Wt;
-
-% for later
-%here we reconfigure weights to be the activation given the ROW of each
-%corresponding column node. should be strongest for re-learned item
-W_study2=squeeze(squeeze(Ws(:,:,2,1)));W_study3=W_study2;
-W_test2=squeeze(squeeze(Wt(:,:,2,1)));W_test3=W_test2;
+initWeightScale = wt_init+rand(Nunits)*wt_init*wtnoise;
+Ws = (ones(Nunits) - eye(Nunits)) .* initWeightScale;
+initWeightScale = wt_init+rand(Nunits)*wt_init*wtnoise;
+Wt = (ones(Nunits) - eye(Nunits)) .* initWeightScale;
 
 % activation threshold
 threshold = 0.4;
 
-%study ALL items, both re-studied later and tested later
-externalInput_study = 1 * ones(Nunits, 1);
+%% initial study 
+%ALL items, both re-studied later and tested later
+%creates 20 x 20 matrix with only 10 "study trials"
+externalInput=zeros(Nunits,Nunits);
 for i=1:Npairs
-    %strengthen corresponding unit via study
-    memoryNet_study = simpleMemoryNet(squeeze(Ws(i,i,:,:)),initAct,threshold,gains_s(i),taus_s(i),inhibition);
-    activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput_study, Nunits);
-    W_study(i,i,:,:) = memoryNet_study.adjustWeights();
-    W_study2(i,i)=squeeze(W_study(i,i,2,1));
-    memoryNet_test = simpleMemoryNet(squeeze(Wt(i,i,:,:)),initAct,threshold,gains_t(i),taus_t(i),inhibition);
-    activation_log_study = memoryNet_test.runTrialUntilThreshold(externalInput_study, Nunits);
-    W_test(i,i,:,:) = memoryNet_test.adjustWeights();
-    W_test2(i,i)=squeeze(W_test(i,i,2,1));
-end;
-%at this point, W_study2 / W_test2 should be similar.
-
-% run re-study trial
-externalInput_study = 1 * ones(Nunits, 1);
-for i=1:Npairs
-    %strengthen corresponding unit via study
-    memoryNet_study = simpleMemoryNet(squeeze(W_study(i,i,:,:)),initAct,threshold,gains_s(i),taus_s(i),inhibition);
-    activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput_study, Nunits);
-    study_a{i}.log=activation_log_study;
-    W_study(i,i,:,:) = memoryNet_study.adjustWeights();
-    W_study3(i,:)=squeeze(W_study(i,:,2,1));%1,1
-end;
-%figure;subplot(211);imagesc(W_study2);colorbar;
-%subplot(212);imagesc(W_study3);colorbar;
-
-% run test trial
-externalInput_test = 1 * ones(Nunits, 1);
-externalInput_test(2:end) = 0;
-for i=1:Npairs
-    memoryNet_test = simpleMemoryNet(squeeze(W_test(i,i,:,:)),initAct,threshold,gains_t(i),taus_t(i),inhibition);
-    activation_log_test= memoryNet_test.runTrialUntilThreshold(externalInput_test, Nunits);
-    test_a{i}.log=activation_log_test;
-    [W_test(i,i,:,:),fract] = memoryNet_test.adjustWeights();
-    %cycle through competitors and implement RIF
-    for j=1:Npairs
-        if i~=j
-            %memoryNet_test = simpleMemoryNet(squeeze(W_test(i,j,:,:)),initAct,threshold,gains_t(i),taus_t(i),inhibition);
-            %activation_log_test= memoryNet_test.runTrialUntilThreshold(externalInput_test, Nunits);
-            %W_test(i,j,:,:) = memoryNet_test.weaken();
-            W_test(i,j,:,:)=W_test(i,j,:,:)/((fract-1)/2+1);
-        end;
-    end;
-    %adjust weights for both target and competitor
-    W_test3(i,:)=squeeze(W_test(i,:,2,1));%2,1
+    externalInput(i,i)=in;
+    externalInput(i+Npairs,i)=in;
 end;
 
-%W_study3(W_study3<0)=0;%zero out negative weights
-%W_test3(W_test3<0)=0;%zero out negative weights
+%strengthen corresponding unit via study
+memoryNet_study = simpleMemoryNet(Ws,initAct,threshold,gain_init,tau_init);
+activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+Ws2 = memoryNet_study.adjustWeights();%iterate over
+memoryNet_study = simpleMemoryNet(Wt,initAct,threshold,gain_init,tau_init);
+activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+Wt2 = memoryNet_study.adjustWeights();%iterate over
+figure;subplot(221);imagesc(Ws);colorbar;subplot(222);imagesc(Wt);colorbar;
+subplot(223);imagesc(Ws2);colorbar;subplot(224);imagesc(Wt2);colorbar;
 
-%% plot
+% templ=zeros(Nunits,1);in=1;
+% for i=1:Npairs
+%     externalInput=templ;
+%     externalInput(i)=in;
+%     externalInput(i+Npairs)=in;
+%     %strengthen corresponding unit via study
+%     memoryNet_study = simpleMemoryNet(Ws,initAct,threshold,gain_init,tau_init);
+%     activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+%     Ws2(i,:,:) = memoryNet_study.adjustWeights();%iterate over
+%     memoryNet_study = simpleMemoryNet(Wt,initAct,threshold,gain_init,tau_init);
+%     activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+%     Wt2(i,:,:) = memoryNet_study.adjustWeights();%iterate over
+% end;
+% Ws2=squeeze(mean(Ws2,1));Wt2=squeeze(mean(Wt2,1));
+
+%% restudy 
+memoryNet_study = simpleMemoryNet(Ws2,initAct,threshold,gain_init,tau_init);
+activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+Ws3 = memoryNet_study.adjustWeights();%iterate over
+
+% %study ALL items, both re-studied later and tested later
+% for i=1:Npairs
+%     externalInput=templ;
+%     externalInput(i)=in;
+%     externalInput(i+Npairs)=in;
+%     %strengthen corresponding unit via study
+%     memoryNet_study = simpleMemoryNet(Ws2,initAct,threshold,gain_init,tau_init);
+%     activation_log_study = memoryNet_study.runTrialUntilThreshold(externalInput,Nunits);
+%     Ws3(i,:,:) = memoryNet_study.adjustWeights();%iterate over
+% end;
+% Ws3=squeeze(mean(Ws3,1));
+
+%% test
+externalInput=zeros(Nunits,Nunits);in=1;
+for i=1:Npairs
+    externalInput(i,i)=in;
+end;
+%strengthen corresponding unit via study
+memoryNet_test = simpleMemoryNet(Wt2,initAct,threshold,gain_init,tau_init);
+activation_log_study = memoryNet_test.runTrialUntilThreshold(externalInput,Nunits);
+Wt3 = memoryNet_test.adjustWeights();%iterate over
+
+% %test
+% for i=1:Npairs
+%     externalInput=templ;
+%     externalInput(i)=in;
+%     %strengthen corresponding unit via study
+%     memoryNet_test = simpleMemoryNet(Wt2,initAct,threshold,gain_init,tau_init);
+%     activation_log_study = memoryNet_test.runTrialUntilThreshold(externalInput,Nunits);
+%     [Wt3(i,:,:),fract] = memoryNet_test.adjustWeights();%iterate over
+% end;
+% Wt3=squeeze(mean(Wt3,1));
+
+%% quick plot
+figure;subplot(321);imagesc(Ws);colorbar;subplot(322);imagesc(Wt);colorbar;
+subplot(323);imagesc(Ws2);colorbar;subplot(324);imagesc(Wt2);colorbar;
+subplot(325);imagesc(Ws3);colorbar;subplot(326);imagesc(Wt3);colorbar;
+
+%% plot - HAVEN'T CHANGED THIS
 %activations
 all_activation = [activation_log_study(:); activation_log_test(:)];
 yl=[min(all_activation) max(all_activation)];

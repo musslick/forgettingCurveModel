@@ -14,19 +14,16 @@ classdef simpleMemoryNet < handle
         
         activation_log; % log of activation for all units
         activation; % current activation
-        
-        inhibition;
     end
     
     methods
         
         % constructor
-        function this = simpleMemoryNet(W_arg,init_arg,threshold_arg,gain_arg,tau_arg,inhib_arg)
+        function this = simpleMemoryNet(W_arg,init_arg,threshold_arg,gain_arg,tau_arg)
             this.W = W_arg;
             this.init = init_arg;
             this.threshold = threshold_arg;
             this.tau=tau_arg;
-            this.inhibition = inhib_arg;
             this.gain=gain_arg;
             
             if(length(this.init) ~= size(this.W))
@@ -80,9 +77,8 @@ classdef simpleMemoryNet < handle
         
         % compute activation at the next time step
         function newAct = computeNewActivation(this, input)
-            %JWA
-            gain_adj=randn(1);%/5
-            trial_gain = this.gain+gain_adj;
+            %trial_gain = this.gain+randn(1);
+            trial_gain = this.gain;
             if(size(input,1) == 1)
                 input = transpose(input);
             end
@@ -94,35 +90,32 @@ classdef simpleMemoryNet < handle
         % adjust weights
         function [W,fract] = adjustWeights(this)
             
-            %JWA
-            %adjust weights if activation finished
-            if this.actFinish 
-                W_delta = zeros(size(this.W));
-                
-                % compute weight adjustments over time
-                for t = 1:size(this.activation_log,1)
-                    current_activation = this.activation_log(t,:);
-                    W_delta = W_delta + this.computeWeightAdjustment(current_activation)*this.W_gain;
-                end
-                
-                % apply weight adjustment
-                W = this.W + W_delta;
-                fract=W(1,2)/this.W(1,2);
-                this.W = W;
-            else;W = this.W;fract=1;
-            end;
+            W_delta = zeros(size(this.W));
+            
+            % compute weight adjustments over time
+            for t = 1:size(this.activation_log,1)
+                current_activation = this.activation_log(t,:);
+                W_delta = W_delta + this.computeWeightAdjustment(current_activation);%*this.W_gain;
+            end
+            
+            % apply weight adjustment
+            W = this.W + W_delta;
+            fract=W/this.W;
+            this.W = W;
         end
         
         function  W_delta = computeWeightAdjustment(this, activation)
             
             % make sure activation vector is column vector
-            if(size(activation,1) == 1)
+            if(size(this.activation_log,1))
                 activation = transpose(activation);
             end
             Nunits = length(activation);
             
             %JWA
-            W_delta = (ones(Nunits) - eye(Nunits)) .* (transpose(activation) * activation);
+            W_delta = (ones(Nunits) - eye(Nunits)) .* (activation*transpose(activation));
+            %currently just adding the same # to element in the matrix ... 
+            %W_delta = (ones(Nunits) - eye(Nunits)) .* (transpose(activation) * activation);
         end
         
         function W = weaken(this)
@@ -132,14 +125,12 @@ classdef simpleMemoryNet < handle
             % compute weight adjustments over time
             for t = 1:size(this.activation_log,1)
                 current_activation = this.activation_log(t,:);
-                W_delta = W_delta + this.computeWeightAdjustment(current_activation)*this.W_gain;
+                W_delta = W_delta + this.computeWeightAdjustment(current_activation);%*this.W_gain;
             end
             
             % apply weight adjustment
             W = this.W-W_delta;
             this.W = W;
         end
-        
-        
     end
 end
