@@ -35,7 +35,7 @@ memoryNet_study = simpleMemoryNet(W_init, Act_init, threshold, gain, tau, 'BCM')
 memoryNet_study.maxTimeSteps = maxTimeSteps;
 memoryNet_study.eta = eta;
 
-% initial study
+%% initial study
 
 % generate input for study phase
 studyInput=zeros(Npairs,Nunits);
@@ -67,7 +67,7 @@ save('studyNet_tmp.mat', 'memoryNet_study');
 memoryNet_study.decayWeights(decayRate, decayIterations_postStudy, decayNoise);
 W_afterStudyDecay = memoryNet_study.W;
 
-% restudy phase
+%% restudy phase
 
 % generate net for restudy condition
 memoryNet_restudyGroup = memoryNet_study;
@@ -89,7 +89,7 @@ end
 % log weights
 W_afterReStudy = memoryNet_restudyGroup.W;
 
-% test phase
+%% test phase
 
 % generate net for restudy condition
 load('studyNet_tmp.mat');
@@ -102,7 +102,7 @@ for pattern = 1:Npairs
     
     % determine current input
     input = studyInput(pattern, :);
-    input(Npairs+1) = 0;
+    input((Npairs+1):end) = 0;
     correct = [pattern pattern+Npairs];
     
     % let network settle until threshold
@@ -129,7 +129,7 @@ W_afterReStudyDecay = memoryNet_restudyGroup.W;
 memoryNet_testGroup.decayWeights(decayRate, decayIterations_postTest, decayNoise);
 W_afterTestDecay = memoryNet_testGroup.W;
 
-% run final test (without learning)
+%% run final test (without learning)
 
 accuracy_finalTest_restudyGroup = nan(1, Npairs);
 RT_finalTest_restudyGroup = nan(1, Npairs);
