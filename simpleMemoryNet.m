@@ -168,7 +168,7 @@ classdef simpleMemoryNet < handle
             end
             
             for t = num_iterations
-                this.W = this.W - decayRate * abs(this.W) + randn(size(this.W));
+                this.W = this.W - decayRate * this.W + randn(size(this.W))*noise;
             end
             
             W = this.W;
@@ -210,5 +210,19 @@ classdef simpleMemoryNet < handle
             W = this.W-W_delta;
             this.W = W;
         end
+        
+        function accuracy = computeAccuracy(this, correctOutput)
+            
+            act = this.activation_log(end,:);
+            act_thresh = zeros(size(act));
+            act_thresh(act < this.threshold) = 0;
+            act_thresh(act >= this.threshold) = 1;
+            correctOutput(correctOutput <= 0) = 0;
+            correctOutput(correctOutput > 0) = 1;
+            
+            accuracy = isequal(act_thresh, correctOutput);
+            
+        end
+        
     end
 end
