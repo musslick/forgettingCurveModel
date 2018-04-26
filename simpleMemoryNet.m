@@ -1,3 +1,4 @@
+
 classdef simpleMemoryNet < handle
     
     properties(SetAccess = public)
@@ -56,9 +57,16 @@ classdef simpleMemoryNet < handle
         end
         
         % run trial
-        function  activation_log = runTrialUntilThreshold(this, externalInput, N_threshold)
+        function  activation_log = runTrialUntilThreshold(this, externalInput, N_threshold, varargin)
             
-            this.activation_log = [];
+            % last argument is flag whether to reset activation log
+            if(isempty(varargin))
+                this.activation_log = [];
+            else
+                if(varargin{1} == 1)
+                    this.activation_log = [];
+                end
+            end
             this.activation_softmax_log = [];
             this.activation = this.init;
             

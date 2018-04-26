@@ -3,11 +3,15 @@ clc;
 
 % experiment parameters
 
+% TODO:check why the last trace in test phase is longer than other ones
+
 % number of pairs to be memorized
 Npairs=10;
 decayIterations_postStudy = 1000;
-decayIterations_postReStudy = 1000;
+decayIterations_postReStudy = 1000; 
 decayIterations_postTest = decayIterations_postReStudy;
+
+% try different tresholds / try different number of max. iterations foe study vs. group manipulations
 
 % network configuration
 
@@ -15,14 +19,17 @@ decayIterations_postTest = decayIterations_postReStudy;
 Nunits = 2*Npairs;      % number of units
 N_threshold = 2;         % # of units required to reach threshold
 w_init_scale = 0.01;    % scale of initial weights
-gain = 1;                     % gain of activation function
-tau = 0.1;                  % time integration constant
-eta = 1;                  % BCM learning rate
-decayRate = 0.01;   % weight decay rate
-decayNoise = 0.00;  % weight decay noise
-threshold = 0.2;          % integration threshold (between 0 and 1)
+gain = 1.5;                     % gain of activation function
+tau = 0.05;                  % time integration constant
+eta = 1;                        % BCM learning rate
+decayRate = 0.01;        % weight decay rate
+decayNoise = 0.01;      % weight decay noise
+threshold_Study = 0.15;                  % integration threshold (between 0 and 1)
+threshold_postStudy = 0.15;          % integration threshold (between 0 and 1)
 inputStrength = 1;      % strength of input
-maxTimeSteps = 50; % maximum number of time steps
+maxTimeSteps_Study = 200; % maximum number of time steps
+maxTimeSteps_postStudy = maxTimeSteps_Study; % maximum number of time steps
+batch_learning = 1;     % set to 1 if weights should be adjustment in batch mode (in that case, the order of stimuli in retrieval phases does not matter)
 
 % initial activation
 Act_init = zeros(Nunits, 1);
@@ -31,11 +38,11 @@ Act_init = zeros(Nunits, 1);
 W_init = rand(Nunits) * w_init_scale - w_init_scale/2;
 
 % create memory network
-memoryNet_study = simpleMemoryNet(W_init, Act_init, threshold, gain, tau, 'BCM');
-memoryNet_study.maxTimeSteps = maxTimeSteps;
+memoryNet_study = simpleMemoryNet(W_init, Act_init, threshold_Study, gain, tau, 'BCM');
+memoryNet_study.maxTimeSteps = maxTimeSteps_Study;
 memoryNet_study.eta = eta;
 
-%% initial study
+% initial study
 
 % generate input for study phase
 studyInput=zeros(Npairs,Nunits);
@@ -44,18 +51,32 @@ for pattern=1:Npairs
     studyInput(pattern, pattern+Npairs)=inputStrength;
 end
 
+
 % for each pattern
 for pattern = 1:Npairs
+    
+    if(batch_learning == 1)
+        resetActivationLog = 0;
+    else
+        resetActivationLog = 1;
+    end
     
     % determine current input
     input = studyInput(pattern, :);
     
     % let network settle until threshold
-    study_activationLog{pattern} = memoryNet_study.runTrialUntilThreshold(input, N_threshold);
+    study_activationLog{pattern} = memoryNet_study.runTrialUntilThreshold(input, N_threshold, resetActivationLog);
     
-    % adjust weights
-    [W,fract] = memoryNet_study.adjustWeights();
+    if(batch_learning == 0)
+        % adjust weights
+        [W, fract] = memoryNet_study.adjustWeights();
+    end
     
+end
+
+if(batch_learning == 1)
+        % adjust weights
+        [W, fract] = memoryNet_study.adjustWeights();
 end
 
 % log weights
@@ -67,7 +88,11 @@ save('studyNet_tmp.mat', 'memoryNet_study');
 memoryNet_study.decayWeights(decayRate, decayIterations_postStudy, decayNoise);
 W_afterStudyDecay = memoryNet_study.W;
 
-%% restudy phase
+% change response threshold and number of time steps for post-study phases
+memoryNet_study.threshold = threshold_postStudy;
+memoryNet_study.maxTimeSteps = maxTimeSteps_postStudy;
+
+% restudy group
 
 % generate net for restudy condition
 memoryNet_restudyGroup = memoryNet_study;
@@ -75,21 +100,34 @@ memoryNet_restudyGroup = memoryNet_study;
 % for each pattern
 for pattern = 1:Npairs
     
+    if(batch_learning == 1)
+        resetActivationLog = 0;
+    else
+        resetActivationLog = 1;
+    end
+    
     % determine current input
     input = studyInput(pattern, :);
     
     % let network settle until threshold
-    restudy_activationLog{pattern} = memoryNet_restudyGroup.runTrialUntilThreshold(input, N_threshold);
+    restudy_activationLog{pattern} = memoryNet_restudyGroup.runTrialUntilThreshold(input, N_threshold, resetActivationLog);
     
+    if(~batch_learning)
+        % adjust weights
+        [W,fract] = memoryNet_restudyGroup.adjustWeights();
+    end
+    
+end
+
+if(batch_learning)
     % adjust weights
-    [W,fract] = memoryNet_restudyGroup.adjustWeights();
-    
+        [W,fract] = memoryNet_restudyGroup.adjustWeights();
 end
 
 % log weights
 W_afterReStudy = memoryNet_restudyGroup.W;
 
-%% test phase
+% test goup
 
 % generate net for restudy condition
 load('studyNet_tmp.mat');
@@ -97,28 +135,42 @@ memoryNet_testGroup = memoryNet_study;
 accuracy_test = nan(1, Npairs);
 RT_test = nan(1, Npairs);
 
+input_log = [];
+
 % for each pattern
 for pattern = 1:Npairs
+    
+    if(batch_learning == 1)
+        resetActivationLog = 0;
+    else
+        resetActivationLog = 1;
+    end
     
     % determine current input
     input = studyInput(pattern, :);
     input((Npairs+1):end) = 0;
     correct = [pattern pattern+Npairs];
+    input_log = [input_log; input];
     
     % let network settle until threshold
-    test_activationLog{pattern} = memoryNet_testGroup.runTrialUntilThreshold(input, N_threshold);
+    test_activationLog{pattern} = memoryNet_testGroup.runTrialUntilThreshold(input, N_threshold, resetActivationLog);
     
     % compute accuracy & RT
     accuracy_test(pattern) = memoryNet_testGroup.computeAccuracy(input);
-    RT_test = length(test_activationLog{pattern});
+    RT_test(pattern) = length(test_activationLog{pattern});
     
-    % adjust weights
-    [W,fract] = memoryNet_testGroup.adjustWeights();
-
+    if(~batch_learning)
+        % adjust weights
+        [W,fract] = memoryNet_testGroup.adjustWeights();
+    end
+    
 end
 
-% log weights
-W_afterTest = memoryNet_testGroup.W;
+if(batch_learning)
+    % log weights
+    W_afterTest = memoryNet_testGroup.W;
+end
+
 
 % final test
 
@@ -129,7 +181,7 @@ W_afterReStudyDecay = memoryNet_restudyGroup.W;
 memoryNet_testGroup.decayWeights(decayRate, decayIterations_postTest, decayNoise);
 W_afterTestDecay = memoryNet_testGroup.W;
 
-%% run final test (without learning)
+% run final test (without learning)
 
 accuracy_finalTest_restudyGroup = nan(1, Npairs);
 RT_finalTest_restudyGroup = nan(1, Npairs);
@@ -151,7 +203,7 @@ for pattern = 1:Npairs
     
     % compute accuracy & RT
    accuracy_finalTest_restudyGroup(pattern) = memoryNet_restudyGroup.computeAccuracy(input);
-   RT_finalTest_restudyGroup = length(finalTest_restudyGroup_activationLog{pattern});
+   RT_finalTest_restudyGroup(pattern) = length(finalTest_restudyGroup_activationLog{pattern});
     
    % test network
    
@@ -160,7 +212,7 @@ for pattern = 1:Npairs
     
     % compute accuracy & RT
     accuracy_finalTest_testGroup(pattern) = memoryNet_testGroup.computeAccuracy(input);
-    RT_finalTest_testGroup = length(finalTest_testGroup_activationLog{pattern});
+    RT_finalTest_testGroup(pattern) = length(finalTest_testGroup_activationLog{pattern});
     
 end
 
@@ -185,6 +237,7 @@ set(fig, 'Position', [100 100 1300 600]);
 % initialization
 subplot(2,7,8);
 imagesc(W_init); colorbar;
+caxis([w_limit]);
 title({'initial',  'weights'});
 
 % study
@@ -238,7 +291,11 @@ plot(finalTest_restudyGroup_activationLog{plotPattern});
 ylim(act_limit);
 xlabel('time');
 ylabel('activation')
-title('final test (restudy group)');
+accuracy = mean(accuracy_finalTest_restudyGroup) * 100;
+RT = mean(RT_finalTest_restudyGroup) * 100;
+title({'final test (restudy group)' ...
+        ['Acc: ' num2str(accuracy) '%, RT = ' ...
+         num2str(RT)]});
 
 subplot(2,7,13);
 imagesc(W_afterReStudyDecay);  
@@ -251,7 +308,11 @@ plot(finalTest_testGroup_activationLog{plotPattern});
 ylim(act_limit);
 xlabel('time');
 ylabel('activation')
-title({'final test (test group)'});
+accuracy = mean(accuracy_finalTest_testGroup) * 100;
+RT = mean(RT_finalTest_testGroup) * 100;
+title({'final test (test group)' ...
+        ['Acc: ' num2str(accuracy) '%, RT = ' ...
+         num2str(RT)]});
 
 subplot(2,7,14);
 imagesc(W_afterTestDecay);  
