@@ -1,14 +1,15 @@
 clear all;
 clc;
 
+% TODO:
+%
+
 % experiment parameters
 
-% TODO:check why the last trace in test phase is longer than other ones
-
 % number of pairs to be memorized
-Npairs=10;
-decayIterations_postStudy = 1000;
-decayIterations_postReStudy = 1000; 
+Npairs=2;
+decayIterations_postStudy = 100;
+decayIterations_postReStudy = 0; 
 decayIterations_postTest = decayIterations_postReStudy;
 
 % try different tresholds / try different number of max. iterations foe study vs. group manipulations
@@ -22,12 +23,12 @@ w_init_scale = 0.01;    % scale of initial weights
 gain = 1.5;                     % gain of activation function
 tau = 0.05;                  % time integration constant
 eta = 1;                        % BCM learning rate
-decayRate = 0.01;        % weight decay rate
-decayNoise = 0.01;      % weight decay noise
-threshold_Study = 0.15;                  % integration threshold (between 0 and 1)
-threshold_postStudy = 0.15;          % integration threshold (between 0 and 1)
+decayRate = 0.001;        % weight decay rate
+decayNoise = 0.00;      % weight decay noise
+threshold_Study = 0.20;                  % integration threshold (between 0 and 1)
+threshold_postStudy = threshold_Study;          % integration threshold (between 0 and 1)
 inputStrength = 1;      % strength of input
-maxTimeSteps_Study = 200; % maximum number of time steps
+maxTimeSteps_Study = 500; % maximum number of time steps
 maxTimeSteps_postStudy = maxTimeSteps_Study; % maximum number of time steps
 batch_learning = 1;     % set to 1 if weights should be adjustment in batch mode (in that case, the order of stimuli in retrieval phases does not matter)
 
@@ -100,7 +101,7 @@ memoryNet_restudyGroup = memoryNet_study;
 % for each pattern
 for pattern = 1:Npairs
     
-    if(batch_learning == 1)
+    if(batch_learning == 1 && pattern ~= 1)
         resetActivationLog = 0;
     else
         resetActivationLog = 1;
@@ -140,7 +141,7 @@ input_log = [];
 % for each pattern
 for pattern = 1:Npairs
     
-    if(batch_learning == 1)
+    if(batch_learning == 1  && pattern ~= 1)
         resetActivationLog = 0;
     else
         resetActivationLog = 1;
@@ -149,14 +150,14 @@ for pattern = 1:Npairs
     % determine current input
     input = studyInput(pattern, :);
     input((Npairs+1):end) = 0;
-    correct = [pattern pattern+Npairs];
+    correct = studyInput(pattern, :);
     input_log = [input_log; input];
     
     % let network settle until threshold
     test_activationLog{pattern} = memoryNet_testGroup.runTrialUntilThreshold(input, N_threshold, resetActivationLog);
     
     % compute accuracy & RT
-    accuracy_test(pattern) = memoryNet_testGroup.computeAccuracy(input);
+    accuracy_test(pattern) = memoryNet_testGroup.computeAccuracy(correct);
     RT_test(pattern) = length(test_activationLog{pattern});
     
     if(~batch_learning)
@@ -193,8 +194,9 @@ for pattern = 1:Npairs
     
     % determine current input
     input = studyInput(pattern, :);
-    input(Npairs+1) = 0;
-    correct = [pattern pattern+Npairs];
+    input((Npairs+1):end) = 0;
+    correct = studyInput(pattern, :);
+    
     
     % study network
     
@@ -202,7 +204,7 @@ for pattern = 1:Npairs
     finalTest_restudyGroup_activationLog{pattern} = memoryNet_restudyGroup.runTrialUntilThreshold(input, N_threshold);
     
     % compute accuracy & RT
-   accuracy_finalTest_restudyGroup(pattern) = memoryNet_restudyGroup.computeAccuracy(input);
+   accuracy_finalTest_restudyGroup(pattern) = memoryNet_restudyGroup.computeAccuracy(correct);
    RT_finalTest_restudyGroup(pattern) = length(finalTest_restudyGroup_activationLog{pattern});
     
    % test network
@@ -211,7 +213,7 @@ for pattern = 1:Npairs
     finalTest_testGroup_activationLog{pattern} = memoryNet_testGroup.runTrialUntilThreshold(input, N_threshold);
     
     % compute accuracy & RT
-    accuracy_finalTest_testGroup(pattern) = memoryNet_testGroup.computeAccuracy(input);
+    accuracy_finalTest_testGroup(pattern) = memoryNet_testGroup.computeAccuracy(correct);
     RT_finalTest_testGroup(pattern) = length(finalTest_testGroup_activationLog{pattern});
     
 end

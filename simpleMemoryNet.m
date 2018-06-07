@@ -175,7 +175,7 @@ classdef simpleMemoryNet < handle
                 noise = 0;
             end
             
-            for t = num_iterations
+            for t = 1:num_iterations
                 this.W = this.W - decayRate * this.W + randn(size(this.W))*noise;
             end
             
