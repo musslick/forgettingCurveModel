@@ -7,10 +7,11 @@ clc;
 % experiment parameters
 
 % number of pairs to be memorized
-Npairs=2;
+Npairs=10;
 decayIterations_postStudy = 100;
 decayIterations_postReStudy = 0; 
 decayIterations_postTest = decayIterations_postReStudy;
+decayIterations_forgettingCurve = 100; 
 
 % try different tresholds / try different number of max. iterations foe study vs. group manipulations
 
@@ -320,3 +321,72 @@ subplot(2,7,14);
 imagesc(W_afterTestDecay);  
 caxis([w_limit]);
 title({'weights at final test', '(test group)'});
+
+
+
+%% FORGETTING PHASE
+accuracy_log_restudyGroup = nan(1, decayIterations_forgettingCurve);
+accuracy_log_testGroup = nan(1, decayIterations_forgettingCurve);
+RT_log_restudyGroup = nan(1, decayIterations_forgettingCurve);
+RT_log_testGroup = nan(1, decayIterations_forgettingCurve);
+
+for iter = 1:decayIterations_forgettingCurve
+    
+    disp(iter);
+    
+    % weight decay
+    memoryNet_restudyGroup.decayWeights(decayRate, 1, decayNoise);
+    memoryNet_testGroup.decayWeights(decayRate, 1, decayNoise);
+    
+    % for each pattern
+    for pattern = 1:Npairs
+
+        % determine current input
+        input = studyInput(pattern, :);
+        input((Npairs+1):end) = 0;
+        correct = studyInput(pattern, :);
+
+
+        % study network
+
+        % let network settle until threshold
+        finalTest_restudyGroup_activationLog{pattern} = memoryNet_restudyGroup.runTrialUntilThreshold(input, N_threshold);
+
+        % compute accuracy & RT
+       accuracy_finalTest_restudyGroup(pattern) = memoryNet_restudyGroup.computeAccuracy(correct);
+       RT_finalTest_restudyGroup(pattern) = length(finalTest_restudyGroup_activationLog{pattern});
+
+       % test network
+
+        % let network settle until threshold
+        finalTest_testGroup_activationLog{pattern} = memoryNet_testGroup.runTrialUntilThreshold(input, N_threshold);
+
+        % compute accuracy & RT
+        accuracy_finalTest_testGroup(pattern) = memoryNet_testGroup.computeAccuracy(correct);
+        RT_finalTest_testGroup(pattern) = length(finalTest_testGroup_activationLog{pattern});
+
+    end
+    
+    accuracy_log_restudyGroup(iter) = mean(accuracy_finalTest_restudyGroup);
+    accuracy_log_testGroup(iter) = mean(accuracy_finalTest_testGroup);
+    RT_log_restudyGroup(iter) = mean(RT_finalTest_restudyGroup);
+    RT_log_testGroup(iter) = mean(RT_finalTest_testGroup);
+    
+end
+
+% PLOTS 
+
+figure(2);
+subplot(1,2,1);
+plot(accuracy_log_restudyGroup*100, '-b', 'LineWidth', 3); hold on;
+plot(accuracy_log_testGroup*100, '-r', 'LineWidth', 3); hold off;
+legend('restudy group', 'test group');
+xlabel('time');
+ylabel('accuracy (%)');
+
+subplot(1,2,2);
+plot(RT_log_restudyGroup, '-b', 'LineWidth', 3); hold on;
+plot(RT_log_testGroup, '-r', 'LineWidth', 3); hold off;
+legend('restudy group', 'test group');
+xlabel('time');
+ylabel('RT (s)');
