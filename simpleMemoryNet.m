@@ -20,6 +20,7 @@ classdef simpleMemoryNet < handle
         activation_log; % log of activation for all units
         activation_softmax_log; % log of sotfmaxed activation for all units
         activation; % current activation
+        activationNoise;
     end
     
     methods
@@ -33,6 +34,7 @@ classdef simpleMemoryNet < handle
             this.gain=gain_arg;
             this.bias = -2;
             this.eta = 0.1;
+            this.activationNoise = 0;
             
             if(length(this.init) ~= size(this.W))
                 error('Dimension of initial activation vector does not match dimension of weight matrix.');
@@ -110,7 +112,7 @@ classdef simpleMemoryNet < handle
                 input = transpose(input);
             end
             
-            netInput = this.W * this.activation + input + this.bias;
+            netInput = this.W * this.activation + input + this.bias + randn(size(this.bias))*this.activationNoise;
             newAct = this.activation + this.tau * (-this.activation + 1./(1+exp(-trial_gain*netInput)));
         end
         

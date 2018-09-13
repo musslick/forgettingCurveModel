@@ -2,7 +2,9 @@ clear all;
 clc;
 
 % TODO:
-%
+% - implement CHL
+% - modularize code
+% - play around with activation noise
 
 % experiment parameters
 
